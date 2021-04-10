@@ -1,15 +1,18 @@
-﻿using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using System;
+﻿using Microsoft.AspNetCore.Mvc;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using MesthingAPI.Data;
 using MesthingAPI.Models;
-using Microsoft.Data.SqlClient;
-using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Microsoft.EntityFrameworkCore;
-
+using System.IdentityModel.Tokens.Jwt;
+using Microsoft.Extensions.Configuration;
+using MesthingAPI.Tools;
+using BC = BCrypt.Net.BCrypt;
+using System;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using MesthingAPI.Models.Requests;
 
 namespace MesthingAPI.Controllers.V1
 {
@@ -18,11 +21,15 @@ namespace MesthingAPI.Controllers.V1
     [Route("api/{v:apiVersion}/user")]
     public class UserController : Controller
     {
+        #region Configure
         private readonly ApplicationDbContext _db;
-        public UserController(ApplicationDbContext db)
+        private readonly IConfiguration _configuration;
+        public UserController(ApplicationDbContext db, IConfiguration configuration)
         {
             _db = db;
+            _configuration = configuration;
         }
+        #endregion
         #region Get
         [HttpGet("{id}")]
         public async Task<ActionResult<IEnumerable<UserModel>>> GetUserByID(int id) => new JsonResult(await _db.Users.FindAsync(id));
@@ -48,27 +55,39 @@ namespace MesthingAPI.Controllers.V1
         #endregion
         #region Post
         [HttpPost("signin")]
-        public ActionResult<string> SignIn([FromForm] string email, [FromForm] string password)
+        public async Task<ActionResult<string>> SignIn([FromForm] UserLoginRequest form)
         {
-            var User = (from x in _db.Users
-                        where x.Email == email
-                        select x).FirstOrDefault();
-            if (User == null) return BadRequest("Email wrong !");
-            if (User.Password != password) return BadRequest("Email wrong !");
-            return Ok("Sign in successfully !");
+            var user = await (from x in _db.Users
+                              where x.Email == form.Email
+                              select x).FirstOrDefaultAsync();
+            if (user == null) return BadRequest("Email wrong !");
+            if (!BC.Verify(form.Password, user.Password)) return BadRequest("Password wrong !");
+            var token = JWTTool.GeneraToken(user);
+            return Ok(new
+            {
+                token = new JwtSecurityTokenHandler().WriteToken(token),
+                expiration = token.ValidTo
+            });
         }
         [HttpPost]
-        public JsonResult CreateNewUser([FromForm] UserModel user)
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        public async Task<ActionResult<string>> CreateNewUser([FromForm] UserRegisterRequest user, [FromForm] int AdminID)
         {
+            var isUser = await (from x in _db.Users
+                                where x.Email == user.Email
+                                select x).FirstOrDefaultAsync();
+            if (isUser != null) return BadRequest("Email has been exits");
             var newUser = new UserModel
             {
                 Email = user.Email,
-                Password = user.Password,
+                Password = BC.HashPassword(user.Password),
                 FirstName = user.FirstName,
                 LastName = user.LastName,
                 DoB = user.DoB,
                 Address = user.Address,
-                Phone = user.Phone
+                Phone = user.Phone,
+                CreateAt = DateTime.Now,
+                EditBy = AdminID,
             };
             _db.Add(newUser);
             _db.SaveChanges();

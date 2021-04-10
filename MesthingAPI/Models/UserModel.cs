@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
 
 namespace MesthingAPI.Models
 {
@@ -35,7 +36,6 @@ namespace MesthingAPI.Models
         [DisplayName("Address")]
         [DataType(DataType.MultilineText)]
         public string Address { get; set; }
-        [Required]
         [DisplayName("DOB")]
         [DataType(DataType.Date)]
         public DateTime DoB { get; set; }
@@ -43,5 +43,20 @@ namespace MesthingAPI.Models
         [DisplayName("Phone Number")]
         [DataType(DataType.PhoneNumber)]
         public string Phone { get; set; }
+        [DisplayName("Create At")]
+        [DataType(DataType.Date)]
+        public DateTime CreateAt { get; set; }
+        [DisplayName("Update At")]
+        [DataType(DataType.Date)]
+        public DateTime UpdateAt { get; set; }
+        [DisplayName("Delete At")]
+        [DataType(DataType.Date)]
+        public DateTime DeleteAt { get; set; }
+        [Required]
+        [DisplayName("Edit By")]
+        public int EditBy { get; set; }
+        [Required]
+        [DisplayName("Devices of user")]
+        public List<DeviceModel> Devices { get; set; }
     }
 }
